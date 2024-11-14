@@ -1,0 +1,51 @@
+services:
+  traefik:
+    image: traefik:v3.2
+    container_name: traefik
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entryPoints.web.address=:80"
+    ports:
+      - "80:80"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      #- "./auth:/auth:ro"
+    networks:
+      - traefik-network
+      - landing-page-network
+      - app1-network
+
+  landing-page:
+    image: nginx:latest
+    platform: ${DOCKER_DEFAULT_PLATFORM}
+    volumes:
+      - "./landing-page:/usr/share/nginx/html"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app0.rule=Host(`${BASE_DOMAIN}`)"
+      - "traefik.http.routers.app0.entrypoints=web"
+    networks:
+      - landing-page-network
+
+  app1:
+    image: sahilng/http-parrot:latest
+    platform: ${DOCKER_DEFAULT_PLATFORM}
+    environment:
+      SAY: "Welcome to app1!"
+      PORT: 8080
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app1.rule=Host(`${BASE_DOMAIN}`) && PathPrefix(`/app1`)"
+      - "traefik.http.routers.app1.entrypoints=web"
+      - "traefik.http.middlewares.app1-strip-prefix.stripprefix.prefixes=/app1"
+      #- "traefik.http.middlewares.app1-auth.basicauth.usersfile=/auth/app1.htpasswd"
+      - "traefik.http.routers.app1.middlewares=app1-strip-prefix" #,app1-auth"
+      - "traefik.http.services.app1.loadbalancer.server.port=8080"
+    networks:
+      - app1-network
+
+networks:
+  traefik-network:
+  landing-page-network:
+  app1-network:
